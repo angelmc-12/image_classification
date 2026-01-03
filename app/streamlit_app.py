@@ -1,21 +1,28 @@
 # app/streamlit_app.py
 from __future__ import annotations
 from pathlib import Path
+import sys
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageOps, ImageFilter
+
+# Ensure the repository root is on sys.path so sibling package `src` can be imported
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 import torch
 
 from src.predict import preprocess_pil, load_trained_model, predict_tensor
 from src.utils import ensure_dir
 
-# Optional dependency for drawing:
+# Optional dependency for drawing. If it's not installed, provide a graceful fallback.
 # pip install streamlit-drawable-canvas
-from streamlit_drawable_canvas import st_canvas
+try:
+    from streamlit_drawable_canvas import st_canvas
+except Exception:
+    st_canvas = None
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WEIGHTS = REPO_ROOT / "models" / "mnist_cnn.pt"
 
 
@@ -59,21 +66,27 @@ with left:
 
     if mode == "🖊️ Dibujar":
         st.write("Dibuja un dígito (0–9). Ideal: trazo grueso y centrado.")
-        canvas = st_canvas(
-            fill_color="black",
-            stroke_width=18,
-            stroke_color="white",
-            background_color="black",
-            height=280,
-            width=280,
-            drawing_mode="freedraw",
-            key="canvas",
-        )
+        if st_canvas is None:
+            st.warning("Para usar el modo dibujo instala: pip install streamlit-drawable-canvas")
+            uploaded_fallback = st.file_uploader("No tienes el componente de dibujo: sube una imagen en su lugar", type=["png", "jpg", "jpeg"])
+            if uploaded_fallback is not None:
+                pil_img = Image.open(uploaded_fallback)
+        else:
+            canvas = st_canvas(
+                fill_color="black",
+                stroke_width=18,
+                stroke_color="white",
+                background_color="black",
+                height=280,
+                width=280,
+                drawing_mode="freedraw",
+                key="canvas",
+            )
 
-        if canvas.image_data is not None:
-            # canvas image_data is RGBA float array 0..255
-            img_arr = canvas.image_data.astype(np.uint8)
-            pil_img = Image.fromarray(img_arr).convert("L")
+            if canvas.image_data is not None:
+                # canvas image_data is RGBA float array 0..255
+                img_arr = canvas.image_data.astype(np.uint8)
+                pil_img = Image.fromarray(img_arr).convert("L")
 
     else:
         uploaded = st.file_uploader("Sube una imagen con un dígito (ideal fondo negro, dígito blanco)", type=["png", "jpg", "jpeg"])
